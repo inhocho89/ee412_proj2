@@ -41,8 +41,7 @@ class RatingPredictor(object):
 
 	def timef(self, ts1, ts2):
 		t_diff = abs(ts1 - ts2)
-#		return 1.0
-		return 0.5*np.exp(0.5)*np.exp(-t_diff)
+		return np.exp(2*np.log(0.5)*t_diff)
 
 	def train(self, tfile):
 		data_list = []
@@ -50,30 +49,23 @@ class RatingPredictor(object):
 			data_reader = csv.reader(f, delimiter="\t")
 			data_list = list(data_reader)
 
-		csum = 0.0
 		for i in range(len(data_list)):
 			row = data_list[i]
 			idx_u = int(row[0])-1
 			idx_i = int(row[1])-1
 			rate = float(row[2])
 			ts = int(row[3])
-			
-			csum += rate
-
 			self._R[idx_u][idx_i] = rate
 			self._T[idx_u][idx_i] = ts
+
 			if ts > 0 and (ts < self._min_ts):
 				self._min_ts = ts
 
-		self._R_avg = float(csum)/float(len(data_list))
 		self._T = np.maximum((self._T - self._min_ts)/(TS_MAX-self._min_ts),0)
 		self._D_item = cosine_similarity(np.matrix.transpose(self._R),np.matrix.transpose(self._R))
 		self._D_user = cosine_similarity(self._R,self._R)
-#		self._D_item = 1-pairwise_distances(np.matrix.transpose(self._R), metric="cosine")
-#		self._D_user = 1-pairwise_distances(self._R, metric="cosine")
 
 	def predict(self, user, item, ts):
-#		return (random.random()*4.0 + 1.0) # for random predict
 		if (self._R[user][item] != 0):
 			return self._R[user][item]
 
@@ -169,7 +161,9 @@ def printUsage():
 	print("  For training:")
 	print("\tpython %s train TRAIN_FILE_NAME" % sys.argv[0])
 	print("  For validation:")
-	print("\tpython %s eval EVAL_FILE_NAME" % sys.argv[0])
+	print("\tpython %s validate EVAL_FILE_NAME" % sys.argv[0])
+	print("  For evaluate:")
+	print("\tpython %s evaluate EVAL_FILE_NAME" % sys.argv[0])
 	print("  To clean up:")
 	print("\tpython %s clean" % sys.argv[0])
 
