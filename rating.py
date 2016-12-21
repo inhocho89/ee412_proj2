@@ -50,18 +50,22 @@ class RatingPredictor(object):
 			data_reader = csv.reader(f, delimiter="\t")
 			data_list = list(data_reader)
 
+		csum = 0.0
 		for i in range(len(data_list)):
 			row = data_list[i]
 			idx_u = int(row[0])-1
 			idx_i = int(row[1])-1
-			rate = int(row[2])
+			rate = float(row[2])
 			ts = int(row[3])
+			
+			csum += rate
 
 			self._R[idx_u][idx_i] = rate
 			self._T[idx_u][idx_i] = ts
 			if ts > 0 and (ts < self._min_ts):
 				self._min_ts = ts
 
+		self._R_avg = float(csum)/float(len(data_list))
 		self._T = np.maximum((self._T - self._min_ts)/(TS_MAX-self._min_ts),0)
 		self._D_item = cosine_similarity(np.matrix.transpose(self._R),np.matrix.transpose(self._R))
 		self._D_user = cosine_similarity(self._R,self._R)
@@ -75,13 +79,13 @@ class RatingPredictor(object):
 
 		d_i = self._D_item[item][:]
 
-		item_idx_list = [x for x in range(NUM_ITEMS) if (d_i[x] != 0.0 and d_i[x] != 1.0 and self._R[user][x] > 0)]
+		item_idx_list = [x for x in range(NUM_ITEMS) if (d_i[x] != 0.0 and d_i[x] != 1.0 and self._R[user][x] > 0.0)]
 
 		item_idx_list = sorted(item_idx_list, key=lambda i: abs(d_i[i]), reverse=True)
 		item_idx_list = item_idx_list[:min(len(item_idx_list)-1,NUM_TOP)]
 
 		d_u = self._D_user[user][:]
-		user_idx_list = [x for x in range(NUM_USERS) if (d_u[x] != 0.0 and d_u[x] != 1.0 and self._R[x][item] > 0)]
+		user_idx_list = [x for x in range(NUM_USERS) if (d_u[x] != 0.0 and d_u[x] != 1.0 and self._R[x][item] > 0.0)]
 
 		user_idx_list = sorted(user_idx_list, key=lambda i: abs(d_u[i]), reverse=True)
 		user_idx_list = user_idx_list[:min(len(user_idx_list)-1,NUM_TOP)]
@@ -110,14 +114,13 @@ class RatingPredictor(object):
 
 		return ret
 
-	def evaluate(self, fin, fout):
+	def validate(self, fin):
 		with open(fin) as fi:
 			data_reader = csv.reader(fi, delimiter="\t")
 			data_list = list(data_reader)
 
 		c = len(data_list)
 		err_cum = 0.0
-
 		sys.stdout.write('\r' + "Evaluating... (0/%d)" % c)
 		for i in range(len(data_list)):
 			sys.stdout.write('\r' + "Evaluating... (%d/%d)" % (i,c))
@@ -135,7 +138,7 @@ class RatingPredictor(object):
 		
 		print("\nRMSE = %f" % np.sqrt(err_cum/float(c)))
 
-	def test(self, fin, fout):
+	def evaluate(self, fin, fout):
 		with open(fin,'r') as fi:
 			data_reader = csv.reader(fi,delimiter=",")
 			data_list = list(data_reader)
@@ -165,8 +168,8 @@ def printUsage():
 	print("<Usage>")
 	print("  For training:")
 	print("\tpython %s train TRAIN_FILE_NAME" % sys.argv[0])
-	print("  For evaluation:")
-	print("\tpython %s eval EVAL_FILE_NAME OUTPUT_FILE_NAME" % sys.argv[0])
+	print("  For validation:")
+	print("\tpython %s eval EVAL_FILE_NAME" % sys.argv[0])
 	print("  To clean up:")
 	print("\tpython %s clean" % sys.argv[0])
 
@@ -175,14 +178,14 @@ def main(argv):
 		r = RatingPredictor(NUM_USERS, NUM_ITEMS)
 		r.train(argv[2])
 		r.save(MODEL_FILE)
-	elif len(argv) == 4 and argv[1] == 'eval':
+	elif len(argv) == 3 and argv[1] == 'validate':
+		r = RatingPredictor(NUM_USERS, NUM_ITEMS)
+		r.load(MODEL_FILE)
+		r.validate(argv[2])
+	elif len(argv) == 4 and argv[1] == 'evaluate':
 		r = RatingPredictor(NUM_USERS, NUM_ITEMS)
 		r.load(MODEL_FILE)
 		r.evaluate(argv[2],argv[3])
-	elif len(argv) == 4 and argv[1] == 'test':
-		r = RatingPredictor(NUM_USERS, NUM_ITEMS)
-		r.load(MODEL_FILE)
-		r.test(argv[2],argv[3])
 	elif len(argv) == 2 and argv[1] == 'clean':
 		clean();
 	else:
